@@ -78,7 +78,7 @@ CARGOS_SET = [
 ]
 
 # ========= IDs DE CANAIS / CATEGORIAS =========
-CATEGORIA_FARMS_ID               = int(os.getenv("CATEGORIA_FARMS_ID",              "1498108914703532183"))
+CATEGORIA_FARMS_ID               = 1500689556960444558  # Categoria para canais de farm privados (CORRIGIDO)
 CATEGORIA_PAINEL_ID              = int(os.getenv("CATEGORIA_PAINEL_ID",             "1500656745800794205"))
 CATEGORIA_BACKUP_ID              = int(os.getenv("CATEGORIA_BACKUP_ID",             "1500652423465930823"))
 CATEGORIA_COMPRA_VENDA_LOGS_ID   = int(os.getenv("CATEGORIA_COMPRA_VENDA_LOGS_ID",  "1500647963117228242"))
@@ -97,11 +97,14 @@ CANAL_BACKUP_ARQUIVOS_ID         = int(os.getenv("CANAL_BACKUP_ARQUIVOS_ID",    
 # Canal do painel de SET (criar automático)
 CANAL_SET_PAINEL_ID              = int(os.getenv("CANAL_SET_PAINEL_ID",             "0"))
 # Canal de confirmações do SET (onde aparece o formulário para admins aprovar)
-CANAL_SET_CONFIRMACAO_ID         = int(os.getenv("CANAL_SET_CONFIRMACAO_ID",        "0"))
+CANAL_SET_CONFIRMACAO_ID         = 1500693330739204277
 
 TWITCH_CLIENT_ID     = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 YOUTUBE_API_KEY      = os.getenv("YOUTUBE_API_KEY")
+
+# Categoria para logs de admin: 1500651624597819442
+CATEGORIA_ADMIN_LOGS            = 1500651624597819442
 
 # ========= BANCO DE DADOS =========
 dados = {
@@ -241,10 +244,23 @@ async def log_acao(acao, usuario, detalhes, cor=None):
             embed.set_author(name="Sistema")
         await canal_logs.send(embed=embed)
 
+# ------------ NOVO: log_admin alterado ------------
+_canal_admin_logs = None
+
 async def log_admin(titulo, descricao, cor=0xffa500):
-    canal = bot.get_channel(CHAT_ADMIN_LOGS_ID)
-    if canal:
-        await canal.send(embed=discord.Embed(title=titulo, description=descricao, color=cor, timestamp=datetime.now()))
+    global _canal_admin_logs
+    if _canal_admin_logs is None:
+        categoria = bot.get_channel(CATEGORIA_ADMIN_LOGS)
+        if categoria and isinstance(categoria, discord.CategoryChannel):
+            canal_existente = discord.utils.get(categoria.text_channels, name="admin-logs")
+            if not canal_existente:
+                try:
+                    canal_existente = await categoria.create_text_channel("admin-logs")
+                except:
+                    pass
+            _canal_admin_logs = canal_existente
+    if _canal_admin_logs:
+        await _canal_admin_logs.send(embed=discord.Embed(title=titulo, description=descricao, color=cor, timestamp=datetime.now()))
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
@@ -344,7 +360,6 @@ class RankingView(View):
 
     @discord.ui.button(label="Atualizar Ranking", style=discord.ButtonStyle.primary, emoji="🔄")
     async def atualizar(self, interaction: discord.Interaction, button: Button):
-        # Qualquer pessoa pode atualizar
         await interaction.response.defer()
         await atualizar_ranking()
         await interaction.followup.send("Ranking atualizado!", ephemeral=True)
@@ -519,7 +534,6 @@ class FarmProdutosModal(Modal, title="Registrar Farm"):
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
-        # Campos extras serão pedidos via segundo modal (Discord limita 5 campos)
         try:
             rotas = int(self.rotas.value.strip())
         except ValueError:
@@ -540,17 +554,13 @@ class FarmProdutosModal(Modal, title="Registrar Farm"):
                         produtos.append({"produto": nome, "quantidade": qtd})
                 except ValueError:
                     pass
-        # Guardar parcial para segunda parte
         self._rotas = rotas
         self._produtos_parciais = produtos
-        # Abrir segundo modal para os demais campos
-        modal2 = FarmProdutos2Modal(self.user_id, self.user_name, self.canal, rotas, produtos)
-        await interaction.followup.send("Preencha os campos restantes:", ephemeral=True)
-        await interaction.followup.send(view=FarmProdutos2View(self.user_id, self.user_name, self.canal, rotas, produtos), ephemeral=True)
+        view = FarmProdutos2View(self.user_id, self.user_name, self.canal, rotas, produtos)
+        await interaction.followup.send("Preencha os campos restantes:", view=view, ephemeral=True)
 
 
 class FarmProdutos2View(View):
-    """View intermediária para abrir o segundo modal de farm."""
     def __init__(self, user_id, user_name, canal, rotas, produtos_parciais):
         super().__init__(timeout=120)
         self.user_id = user_id
@@ -687,7 +697,6 @@ class PagamentoFarmModal(Modal, title="Registrar Pagamento"):
 # ========= FECHAR CAIXA (ESCOLHER TIPO) =========
 
 class EscolherTipoFechamentoView(View):
-    """Admin escolhe qual tipo de caixa vai fechar: Droga, Dinheiro Sujo ou Farm."""
     def __init__(self, user_id, user_name, canal):
         super().__init__(timeout=120)
         self.user_id = user_id
@@ -939,7 +948,6 @@ class FechamentoCaixaModal(Modal, title="Finalizar Fechamento - Dinheiro Sujo"):
                 "detalhes": {"total_sujo": self.total_sujo, "lavagem": self.lavagem, "faccao": self.faccao, "membro_base": self.membro_base, "bonus": bonus_valor},
                 "print_url": imagem_url
             })
-        # Limpar dinheiro sujo após fechamento
         user_data["dinheiro_sujo"] = 0
         user_data["transacoes_dinheiro_sujo"] = []
         fechamento = {
@@ -974,8 +982,7 @@ class FechamentoCaixaModal(Modal, title="Finalizar Fechamento - Dinheiro Sujo"):
         await interaction.followup.send(f"Pagamento de R$ {pagamento_final:,.2f} registrado!", ephemeral=True)
         await log_acao("fechar_caixa", interaction.user, f"Usuário: {self.user_name}\nPagamento: R$ {pagamento_final}", 0xffa500)
         await atualizar_ranking()
-
-# ========= COMPRA/VENDA =========
+        # ========= COMPRA/VENDA =========
 class VendaArmaModal(Modal, title="Venda de Arma"):
     tipo_arma   = TextInput(label="Tipo de Arma", placeholder="Ex: Rifle AK, Pistola Glock...", required=True)
     quantidade  = TextInput(label="Quantidade", placeholder="Ex: 10", required=True)
@@ -1348,7 +1355,6 @@ class FarmChannelView(View):
         if not (is_admin(interaction.user) or is_membro(interaction.user)):
             await interaction.response.send_message("Apenas membros podem registrar farm.", ephemeral=True)
             return
-        view = FarmProdutos2View(self.user_id, self.user_name, interaction.channel, 0, [])
         await interaction.response.send_modal(FarmProdutosModal(self.user_id, self.user_name, interaction.channel))
 
     @discord.ui.button(label="Farm Dinheiro Sujo", style=discord.ButtonStyle.danger, emoji="💰", row=0)
@@ -1673,7 +1679,6 @@ class SolicitarSetModal(Modal, title="Solicitar SET"):
             timestamp=datetime.now()
         )
         embed.set_footer(text=f"ID da solicitação: {sol_id}")
-        # Enviar para canal de confirmação com botões de aceitar/recusar
         canal_conf = bot.get_channel(CANAL_SET_CONFIRMACAO_ID)
         if canal_conf:
             view = AceitarRecusarSetView(sol_id, interaction.user.id)
@@ -1693,7 +1698,6 @@ class AceitarRecusarSetView(View):
         if not is_admin(interaction.user):
             await interaction.response.send_message("Apenas administradores podem aceitar solicitações.", ephemeral=True)
             return
-        # Mostrar select de cargos
         view = EscolherCargoSetView(self.sol_id, self.user_id, interaction.message)
         await interaction.response.send_message("Escolha o cargo para atribuir:", view=view, ephemeral=True)
 
@@ -1716,7 +1720,6 @@ class AceitarRecusarSetView(View):
             await interaction.message.edit(embed=embed, view=None)
         except:
             pass
-        # Notificar usuário
         try:
             user = await bot.fetch_user(self.user_id)
             await user.send(embed=discord.Embed(
@@ -1776,7 +1779,6 @@ class CargoSetSelect(Select):
             sol["cargo_dado"] = cargo_id
             sol["admin_id"] = interaction.user.id
             salvar_dados()
-        # Atualizar mensagem de confirmação
         try:
             embed = self.message.embeds[0]
             embed.color = discord.Color.green()
@@ -1786,7 +1788,6 @@ class CargoSetSelect(Select):
             await self.message.edit(embed=embed, view=None)
         except:
             pass
-        # Notificar usuário
         try:
             await member.send(embed=discord.Embed(
                 title="✅ Sua solicitação de SET foi aceita!",
@@ -2501,10 +2502,8 @@ class ConfirmPaymentView(View):
                     embed.set_image(url=print_urls[0])
                 await canal_logs.send(embed=embed)
             await interaction.followup.send("Pagamento registrado com sucesso!", ephemeral=True)
-            self.stop()
         else:
             await interaction.followup.send("Ação não encontrada.", ephemeral=True)
-            self.stop()
 
 
 # ========= ADMIN EXTRA =========
@@ -2622,14 +2621,12 @@ async def on_ready():
             await canal_acoes.send(embed=embed, view=view)
 
         # ---- PAINEL DE SET (AUTOMÁTICO) ----
-        # Procura um canal chamado "solicitar-set" na categoria do painel ou cria
         canal_set = None
         for ch in guild.text_channels:
             if ch.name == "solicitar-set":
                 canal_set = ch
                 break
         if not canal_set:
-            # Tenta criar na categoria do painel
             cat_painel = guild.get_channel(CATEGORIA_PAINEL_ID)
             if cat_painel:
                 canal_set = await cat_painel.create_text_channel("solicitar-set")
