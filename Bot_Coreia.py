@@ -78,16 +78,16 @@ CARGOS_SET = [
 ]
 
 # ========= IDs DE CANAIS / CATEGORIAS =========
-CATEGORIA_FARMS_ID               = 1500689556960444558  # Categoria para canais de farm privados (CORRIGIDO)
+CATEGORIA_FARMS_ID               = 1500689556960444558  # Categoria para canais de farm privados
 CATEGORIA_PAINEL_ID              = int(os.getenv("CATEGORIA_PAINEL_ID",             "1500656745800794205"))
 CATEGORIA_BACKUP_ID              = int(os.getenv("CATEGORIA_BACKUP_ID",             "1500652423465930823"))
 CATEGORIA_COMPRA_VENDA_LOGS_ID   = int(os.getenv("CATEGORIA_COMPRA_VENDA_LOGS_ID",  "1500647963117228242"))
 CATEGORIA_LOGS_ID                = int(os.getenv("CATEGORIA_LOGS_ID",               "1500656957059764385"))
 
-CHAT_LOGS_ID                     = int(os.getenv("CHAT_LOGS_ID",                    "1500656957059764385"))
+CHAT_LOGS_ID                     = int(os.getenv("CHAT_LOGS_ID",                    "1500704028735176784"))
 CHAT_ADMIN_LOGS_ID               = int(os.getenv("CHAT_ADMIN_LOGS_ID",              "1500656957059764385"))
-CHAT_RANK_ID                     = int(os.getenv("CHAT_RANK_ID",                    "1500652542743412819"))
-CHAT_COMPRA_VENDA_ID             = int(os.getenv("CHAT_COMPRA_VENDA_ID",            "1500647963117228242"))
+CHAT_RANK_ID                     = int(os.getenv("CHAT_RANK_ID",                    "1500704618206859304"))
+CHAT_COMPRA_VENDA_ID             = int(os.getenv("CHAT_COMPRA_VENDA_ID",            "1500704392528138270"))
 LOG_REGISTROS_ID                 = int(os.getenv("LOG_REGISTROS_ID",                "1500649180153122957"))
 CANAL_LIVES_PAINEL_ID            = int(os.getenv("CANAL_LIVES_PAINEL_ID",           "1498692536800252084"))
 CANAL_ACOES_PAINEL_ID            = int(os.getenv("CANAL_ACOES_PAINEL_ID",           "1500647352497737748"))
@@ -244,7 +244,6 @@ async def log_acao(acao, usuario, detalhes, cor=None):
             embed.set_author(name="Sistema")
         await canal_logs.send(embed=embed)
 
-# ------------ NOVO: log_admin alterado ------------
 _canal_admin_logs = None
 
 async def log_admin(titulo, descricao, cor=0xffa500):
@@ -1770,6 +1769,13 @@ class CargoSetSelect(Select):
             return
         try:
             await member.add_roles(cargo, reason=f"SET aprovado por {interaction.user.name}")
+        except discord.Forbidden:
+            await interaction.followup.send(
+                f"❌ Sem permissão para dar o cargo **{cargo_nome}**. "
+                f"Verifique se o cargo do bot está **acima** desse cargo na lista de cargos do servidor.",
+                ephemeral=True
+            )
+            return
         except Exception as e:
             await interaction.followup.send(f"Erro ao atribuir cargo: {e}", ephemeral=True)
             return
@@ -2567,6 +2573,8 @@ async def on_ready():
                 ),
                 view=CompraVendaView()
             )
+        else:
+            print(f"⚠️ Canal de compra/venda ({CHAT_COMPRA_VENDA_ID}) não encontrado ou não é um TextChannel.")
 
         # ---- PAINEL CRIAR CANAL ----
         categoria_painel = guild.get_channel(CATEGORIA_PAINEL_ID)
