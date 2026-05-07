@@ -55,19 +55,14 @@ CHAT_ADMIN_LOGS_ID               = 1500656957059764385
 CHAT_RANK_ID                     = 1500704618206859304
 CHAT_COMPRA_VENDA_ID             = 1500704392528138270
 LOG_REGISTROS_ID                 = 1500649180153122957
-CANAL_LIVES_PAINEL_ID            = 1498692536800252084
 CANAL_ACOES_PAINEL_ID            = 1500647352497737748
 CANAL_ACOES_LOGS_ID              = 1500647398093881474
 CANAL_BACKUP_ARQUIVOS_ID         = 1500652423465930823
-CANAL_SET_PAINEL_ID              = 0
 CANAL_SET_CONFIRMACAO_ID         = 1500693330739204277
-CANAL_PD_ID                      = 1500714062860783626   # NOVO: Painel de PD
+CANAL_PD_ID                      = 1500714062860783626
+CANAL_RECARREGAR_PAINEL_ID       = 1501927452073525258
 
-TWITCH_CLIENT_ID     = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
-YOUTUBE_API_KEY      = os.getenv("YOUTUBE_API_KEY")
-
-CATEGORIA_ADMIN_LOGS            = 1500651624597819442
+CATEGORIA_ADMIN_LOGS = 1500651624597819442
 
 # ========= BANCO DE DADOS =========
 dados = {
@@ -79,12 +74,9 @@ dados = {
     "compras_vendas": [],
     "usuarios_banidos": [],
     "dinheiro_sujo": {},
-    "lives": {
-        "config": {}, "streamers": {}, "last_notified": {}, "status": {}
-    },
     "acoes": {},
     "solicitacoes_set": {},
-    "pds": []           # NOVO: registros de PD
+    "pds": []
 }
 
 def salvar_dados():
@@ -256,7 +248,7 @@ def pode_registrar_acao(member) -> bool:
 def pode_resetar_rank(member) -> bool:
     return tem_cargo(member, CARGO_RESET_RANK_IDS)
 
-# ========= RANKING REFORMULADO =========
+# ========= RANKING =========
 async def atualizar_ranking():
     canal = bot.get_channel(CHAT_RANK_ID)
     if not canal:
@@ -367,8 +359,7 @@ class ConfirmarResetView(View):
         await interaction.response.send_message("Reset cancelado.", ephemeral=True)
         self.stop()
 
-# ========= MODAIS DE FARM =========
-
+# ========= MODAIS DE FARM, DINHEIRO SUJO, DROGAS =========
 class DinheiroSujoModal(Modal, title="Registrar Dinheiro Sujo (C4)"):
     qtd_c4 = TextInput(label="Quantidade de C4 que pegaram do baú", placeholder="Ex: 5", required=True)
     valor_rendeu = TextInput(label="Valor que rendeu (R$)", placeholder="Ex: 5000", required=True)
@@ -426,7 +417,6 @@ class DinheiroSujoModal(Modal, title="Registrar Dinheiro Sujo (C4)"):
         await interaction.followup.send(f"C4: {qtd_c4} | R$ {valor:,.2f} registrado como dinheiro sujo para {self.user_name}!", ephemeral=True)
         await log_acao("registrar_dinheiro_sujo", interaction.user, f"Usuário: {self.user_name}\nC4: {qtd_c4}\nValor: R$ {valor:,.2f}", 0xff0000)
         await atualizar_ranking()
-
 
 class VendaDrogasModal(Modal, title="Registrar Venda de Drogas"):
     qtd_bau = TextInput(label="Quantidade que pegou do baú", placeholder="Ex: 50", required=True)
@@ -491,7 +481,6 @@ class VendaDrogasModal(Modal, title="Registrar Venda de Drogas"):
         await log_acao("venda_drogas", interaction.user, f"Usuário: {self.user_name}\nDinheiro: R$ {dinheiro:,.2f}", 0x9b59b6)
         await atualizar_ranking()
 
-
 class FarmProdutosModal(Modal, title="Registrar Farm"):
     borracha_inicial    = TextInput(label="Borracha", placeholder="Ex: 50", required=True)
     corpo_rifle_normal   = TextInput(label="Corpo de Rifle Normal", placeholder="Ex: 10", required=False)
@@ -533,7 +522,6 @@ class FarmProdutosModal(Modal, title="Registrar Farm"):
         view = FarmProdutos2View(self.user_id, self.user_name, self.canal, produtos)
         await interaction.followup.send("Preencha os campos restantes:", view=view, ephemeral=True)
 
-
 class FarmProdutos2View(View):
     def __init__(self, user_id, user_name, canal, produtos_parciais):
         super().__init__(timeout=120)
@@ -545,7 +533,6 @@ class FarmProdutos2View(View):
     @discord.ui.button(label="Continuar → Mais Itens", style=discord.ButtonStyle.primary, emoji="➡️")
     async def continuar(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(FarmProdutos2Modal(self.user_id, self.user_name, self.canal, self.produtos_parciais))
-
 
 class FarmProdutos2Modal(Modal, title="Farm - Itens Adicionais"):
     corpo_pistola  = TextInput(label="Corpo de Pistola", placeholder="Ex: 20", required=False)
@@ -612,7 +599,6 @@ class FarmProdutos2Modal(Modal, title="Farm - Itens Adicionais"):
         await log_admin("NOVA FARM", f"Usuário: {interaction.user.mention}\nProdutos: {len(produtos)} tipos", 0x00ff00)
         await atualizar_ranking()
 
-
 class PagamentoFarmModal(Modal, title="Registrar Pagamento"):
     valor = TextInput(label="Valor do Pagamento (R$)", placeholder="Ex: 500", required=True)
 
@@ -662,7 +648,6 @@ class PagamentoFarmModal(Modal, title="Registrar Pagamento"):
         await log_acao("pagar", interaction.user, f"Usuário: {self.user_name}\nValor: R$ {valor:,.2f}", 0xffa500)
         await atualizar_ranking()
 
-
 # ========= PAINEL DE PD =========
 class PainelPDView(View):
     def __init__(self):
@@ -671,7 +656,6 @@ class PainelPDView(View):
     @discord.ui.button(label="Registrar PD", style=discord.ButtonStyle.danger, emoji="🪖")
     async def registrar_pd(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(ModalPD())
-
 
 class ModalPD(Modal, title="Registrar PD"):
     quem_tomou = TextInput(label="Quem tomou PD (@ da pessoa)", placeholder="Ex: @joaoreis", required=True)
@@ -698,8 +682,8 @@ class ModalPD(Modal, title="Registrar PD"):
             await canal_pd.send(embed=embed)
         await interaction.followup.send("✅ PD registrado com sucesso!", ephemeral=True)
         await log_acao("registrar_pd", interaction.user, f"Tomou: {self.quem_tomou.value} | Fez: {self.quem_fez.value}", 0xff5500)
-# ========= FECHAR CAIXA (ESCOLHER TIPO) =========
 
+# ========= FECHAR CAIXA (ESCOLHER TIPO) =========
 class EscolherTipoFechamentoView(View):
     def __init__(self, user_id, user_name, canal):
         super().__init__(timeout=120)
@@ -707,7 +691,6 @@ class EscolherTipoFechamentoView(View):
         self.user_name = user_name
         self.canal = canal
         self.add_item(TipoFechamentoSelect(user_id, user_name, canal))
-
 
 class TipoFechamentoSelect(Select):
     def __init__(self, user_id, user_name, canal):
@@ -764,7 +747,6 @@ class TipoFechamentoSelect(Select):
             view = FechamentoFarmView(self.user_id, self.user_name, self.canal, farms)
             await interaction.response.send_message(embed=embed, view=view)
 
-
 class FechamentoSummaryView(View):
     def __init__(self, user_id, user_name, canal, total_sujo, lavagem, faccao, membro_base, tipo):
         super().__init__(timeout=300)
@@ -784,7 +766,6 @@ class FechamentoSummaryView(View):
             return
         modal = FechamentoCaixaModal(self.user_id, self.user_name, self.canal, self.total_sujo, self.lavagem, self.faccao, self.membro_base)
         await interaction.response.send_modal(modal)
-
 
 class FechamentoDrogasView(View):
     def __init__(self, user_id, user_name, canal, total, vendas):
@@ -829,7 +810,6 @@ class FechamentoDrogasView(View):
         await log_acao("fechar_caixa", interaction.user, f"Usuário: {self.user_name}\nTipo: Drogas\nValor: R$ {self.total:,.2f}", 0x9b59b6)
         await atualizar_ranking()
 
-
 class FechamentoFarmView(View):
     def __init__(self, user_id, user_name, canal, farms):
         super().__init__(timeout=300)
@@ -844,7 +824,6 @@ class FechamentoFarmView(View):
             await interaction.response.send_message("Apenas administradores!", ephemeral=True)
             return
         await interaction.response.send_modal(FechamentoFarmModal(self.user_id, self.user_name, self.canal, self.farms))
-
 
 class FechamentoFarmModal(Modal, title="Fechar Caixa - Farm"):
     valor_pagar = TextInput(label="Valor a pagar (R$)", placeholder="Ex: 1500", required=True)
@@ -894,7 +873,6 @@ class FechamentoFarmModal(Modal, title="Fechar Caixa - Farm"):
         await interaction.followup.send(f"Farm fechada! R$ {valor:,.2f} registrado.", ephemeral=True)
         await log_acao("fechar_caixa", interaction.user, f"Usuário: {self.user_name}\nTipo: Farm\nValor: R$ {valor:,.2f}", 0x00ff00)
         await atualizar_ranking()
-
 
 class FechamentoCaixaModal(Modal, title="Finalizar Fechamento - Dinheiro Sujo"):
     meta_farm = TextInput(label="Meta de Farm (Sim/Não)", placeholder="Digite Sim ou Não", required=True)
@@ -1029,7 +1007,6 @@ class VendaArmaModal(Modal, title="Venda de Arma"):
         await interaction.followup.send(f"✅ Venda de **{qtd}x {self.tipo_arma.value}** registrada! Valor: R$ {valor:,.2f}", ephemeral=True)
         await log_acao("compra_venda", interaction.user, f"Venda Arma: {qtd}x {self.tipo_arma.value} - R$ {valor} - {self.faccao.value}", 0x00ff00)
 
-
 class CompraModal(Modal, title="Compra de Produto"):
     quantidade      = TextInput(label="Quantidade", placeholder="Ex: 1000", required=True)
     produto         = TextInput(label="Produto", placeholder="Ex: Munição", required=True)
@@ -1072,7 +1049,6 @@ class CompraModal(Modal, title="Compra de Produto"):
         await interaction.followup.send("Compra registrada!", ephemeral=True)
         await log_acao("compra_venda", interaction.user, f"Compra: {qtd} x {self.produto.value} - R$ {valor}", 0x00ff00)
 
-
 class CompraVendaView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1084,7 +1060,6 @@ class CompraVendaView(View):
     @discord.ui.button(label="Compra de Produto", style=discord.ButtonStyle.primary, emoji="🛒")
     async def compra(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(CompraModal())
-
 
 # ========= EDIÇÃO DE REGISTROS (FARM + DINHEIRO SUJO + DROGAS) =========
 class EditarRegistroSelect(Select):
@@ -1116,7 +1091,6 @@ class EditarRegistroSelect(Select):
         farm = user_data["farms"][idx]
         modal = EditarFarmModal(self.user_id, self.user_name, interaction.channel, idx, farm)
         await interaction.response.send_modal(modal)
-
 
 class EditarFarmModal(Modal, title="Editar Registro de Farm"):
     borracha = TextInput(label="Borracha", placeholder="Ex: 50", required=True)
@@ -1175,7 +1149,6 @@ class EditarFarmModal(Modal, title="Editar Registro de Farm"):
         await log_acao("editar_farm", interaction.user, f"Usuário: {self.user_name}\nFarm ID: {novo_registro['farm_id']}\nBorracha: {borracha_qtd}", 0x3498db)
         await atualizar_ranking()
 
-
 class EditarDinheiroSujoSelect(Select):
     def __init__(self, user_id, user_name):
         self.user_id = str(user_id)
@@ -1205,7 +1178,6 @@ class EditarDinheiroSujoSelect(Select):
         trans = user_data["transacoes_dinheiro_sujo"][idx]
         modal = EditarDinheiroSujoModal(self.user_id, self.user_name, interaction.channel, idx, trans)
         await interaction.response.send_modal(modal)
-
 
 class EditarDinheiroSujoModal(Modal, title="Editar Depósito de Dinheiro Sujo"):
     qtd_c4     = TextInput(label="Novo C4 do baú", placeholder="Ex: 5", required=True)
@@ -1265,7 +1237,6 @@ class EditarDinheiroSujoModal(Modal, title="Editar Depósito de Dinheiro Sujo"):
         await log_acao("editar_dinheiro_sujo", interaction.user, f"Usuário: {self.user_name}\nNovo valor: R$ {novo_valor:,.2f}", 0x3498db)
         await atualizar_ranking()
 
-
 class EditarDrogasSelect(Select):
     def __init__(self, user_id, user_name):
         self.user_id = str(user_id)
@@ -1293,7 +1264,6 @@ class EditarDrogasSelect(Select):
         v = user_data["vendas_drogas"][idx]
         modal = EditarDrogasModal(self.user_id, self.user_name, interaction.channel, idx, v)
         await interaction.response.send_modal(modal)
-
 
 class EditarDrogasModal(Modal, title="Editar Venda de Drogas"):
     qtd_bau = TextInput(label="Nova qtd do baú", placeholder="Ex: 50", required=True)
@@ -1355,14 +1325,12 @@ class EditarDrogasModal(Modal, title="Editar Venda de Drogas"):
         await log_acao("editar_drogas", interaction.user, f"Usuário: {self.user_name}\nDinheiro: R$ {dinheiro:,.2f}", 0x3498db)
         await atualizar_ranking()
 
-
 class EscolherTipoEdicaoView(View):
     def __init__(self, user_id, user_name):
         super().__init__(timeout=120)
         self.user_id = user_id
         self.user_name = user_name
         self.add_item(TipoEdicaoSelect(user_id, user_name))
-
 
 class TipoEdicaoSelect(Select):
     def __init__(self, user_id, user_name):
@@ -1386,7 +1354,6 @@ class TipoEdicaoSelect(Select):
         view = View(timeout=None)
         view.add_item(select)
         await interaction.response.send_message(f"Selecione o registro de **{tipo}** que deseja editar:", view=view, ephemeral=True)
-
 
 async def enviar_historico_farms(interaction, user_id, user_name):
     user_data = dados["usuarios"].get(str(user_id), {})
@@ -1433,7 +1400,6 @@ async def enviar_historico_farms(interaction, user_id, user_name):
                 valor += f"\n🖼️ [Ver print]({print_url})"
             embed.add_field(name=f"💊 Drogas ({registro['data']})", value=valor, inline=False)
     await interaction.followup.send(embed=embed, ephemeral=True)
-
 
 # ========= CANAL PRIVADO DE FARM =========
 class FarmChannelView(View):
@@ -1532,7 +1498,6 @@ class FarmChannelView(View):
             return
         await interaction.response.send_message("⚠️ Tem certeza?", view=ConfirmarFechamentoView(self.user_id, interaction.channel), ephemeral=True)
 
-
 class ConfirmResetSemanalView(View):
     def __init__(self, user_id, user_name, canal):
         super().__init__(timeout=60)
@@ -1558,7 +1523,6 @@ class ConfirmResetSemanalView(View):
     async def cancel(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message("Reset cancelado.", ephemeral=True)
 
-
 class ConfirmarFechamentoView(View):
     def __init__(self, user_id, canal):
         super().__init__(timeout=60)
@@ -1582,7 +1546,6 @@ class ConfirmarFechamentoView(View):
     async def cancelar(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message("Cancelado!", ephemeral=True)
 
-
 class MudarNomeModal(Modal, title="Mudar Nome do Canal"):
     novo_nome = TextInput(label="Novo nome", placeholder="Ex: farm-lucas", required=True, max_length=90)
 
@@ -1601,7 +1564,6 @@ class MudarNomeModal(Modal, title="Mudar Nome do Canal"):
             await interaction.followup.send(f"Nome alterado para {nome}", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Erro: {str(e)[:100]}", ephemeral=True)
-
 
 # ========= BACKUP =========
 class BackupView(View):
@@ -1646,7 +1608,6 @@ class BackupView(View):
         view = RecarregarBackupSelectView(backups)
         await interaction.followup.send("Selecione o backup que deseja restaurar:", view=view, ephemeral=True)
 
-
 class RecarregarBackupSelectView(View):
     def __init__(self, backups):
         super().__init__(timeout=120)
@@ -1662,7 +1623,6 @@ class RecarregarBackupSelectView(View):
             options.append(discord.SelectOption(label=info[:100], value=b))
         if options:
             self.add_item(BackupSelectDropdown(options))
-
 
 class BackupSelectDropdown(Select):
     def __init__(self, options):
@@ -1683,7 +1643,6 @@ class BackupSelectDropdown(Select):
             await atualizar_ranking()
         except Exception as e:
             await interaction.followup.send(f"Erro ao recarregar backup: {e}", ephemeral=True)
-
 
 # ========= BOTÃO CRIAR CANAL =========
 class BotaoCriarCanalView(View):
@@ -1738,7 +1697,6 @@ class BotaoCriarCanalView(View):
         except Exception as e:
             await interaction.followup.send(f"Erro: {str(e)[:200]}", ephemeral=True)
 
-
 # ========= PAINEL DE SET =========
 class SetPainelView(View):
     def __init__(self):
@@ -1747,7 +1705,6 @@ class SetPainelView(View):
     @discord.ui.button(label="Solicitar SET", style=discord.ButtonStyle.success, emoji="📋")
     async def solicitar_set(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(SolicitarSetModal())
-
 
 class SolicitarSetModal(Modal, title="Solicitar SET"):
     nome = TextInput(label="Nome", placeholder="Seu nome no jogo", required=True)
@@ -1778,7 +1735,6 @@ class SolicitarSetModal(Modal, title="Solicitar SET"):
             await canal_conf.send(embed=embed, view=view)
         await interaction.followup.send("✅ Sua solicitação foi enviada! Aguarde a aprovação de um administrador.", ephemeral=True)
         await log_admin("NOVA SOLICITAÇÃO DE SET", f"Usuário: {interaction.user.mention}\nNome: {self.nome.value}\nID: {self.id_jogo.value}", 0xffd700)
-
 
 class AceitarRecusarSetView(View):
     def __init__(self, sol_id, user_id):
@@ -1825,7 +1781,6 @@ class AceitarRecusarSetView(View):
         await interaction.followup.send("Solicitação recusada.", ephemeral=True)
         await log_admin("SET RECUSADO", f"Usuário: <@{self.user_id}>\nAdmin: {interaction.user.mention}", 0xff0000)
 
-
 class EscolherCargoSetView(View):
     def __init__(self, sol_id, user_id, message):
         super().__init__(timeout=120)
@@ -1833,7 +1788,6 @@ class EscolherCargoSetView(View):
         self.user_id = user_id
         self.message = message
         self.add_item(CargoSetSelect(sol_id, user_id, message))
-
 
 class CargoSetSelect(Select):
     def __init__(self, sol_id, user_id, message):
@@ -1899,462 +1853,6 @@ class CargoSetSelect(Select):
         await interaction.followup.send(f"✅ Cargo **{cargo_nome}** atribuído para {member.mention}!", ephemeral=True)
         await log_admin("SET ACEITO", f"Usuário: {member.mention}\nCargo: {cargo_nome}\nAdmin: {interaction.user.mention}", 0x00ff00)
 
-
-# ========= SISTEMA DE LIVES =========
-def extract_platform_from_url(url: str):
-    url = url.strip().lower()
-    if "twitch.tv" in url:
-        match = re.search(r"twitch\.tv/([a-zA-Z0-9_]+)", url)
-        if match: return ("twitch", match.group(1))
-    elif "youtube.com" in url or "youtu.be" in url:
-        if "youtube.com/@" in url: return ("youtube", url.split("@")[-1].split("/")[0])
-        elif "youtube.com/channel/" in url: return ("youtube", url.split("/channel/")[-1].split("?")[0])
-        elif "youtube.com/c/" in url: return ("youtube", url.split("/c/")[-1].split("/")[0])
-    elif "kick.com" in url:
-        match = re.search(r"kick\.com/([a-zA-Z0-9_]+)", url)
-        if match: return ("kick", match.group(1))
-    elif "tiktok.com" in url:
-        match = re.search(r"tiktok\.com/@([a-zA-Z0-9_.]+)", url)
-        if match: return ("tiktok", match.group(1))
-    return (None, None)
-
-
-twitch_token = None
-twitch_token_expiry = 0
-
-
-async def get_twitch_token():
-    global twitch_token, twitch_token_expiry
-    if twitch_token and datetime.utcnow().timestamp() < twitch_token_expiry:
-        return twitch_token
-    if not TWITCH_CLIENT_ID or not TWITCH_CLIENT_SECRET:
-        return None
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://id.twitch.tv/oauth2/token",
-            params={"client_id": TWITCH_CLIENT_ID, "client_secret": TWITCH_CLIENT_SECRET, "grant_type": "client_credentials"}
-        ) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                twitch_token = data["access_token"]
-                twitch_token_expiry = datetime.utcnow().timestamp() + data["expires_in"] - 60
-                return twitch_token
-    return None
-
-
-async def check_twitch_lives(streamers):
-    token = await get_twitch_token()
-    if not token: return {}
-    usernames = [s for s in streamers if s]
-    if not usernames: return {}
-    headers = {"Client-ID": TWITCH_CLIENT_ID, "Authorization": f"Bearer {token}"}
-    url = "https://api.twitch.tv/helix/streams?user_login=" + "&user_login=".join(usernames)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                return {s["user_login"].lower(): s for s in data.get("data", [])}
-    return {}
-
-
-async def check_youtube_lives(streamers):
-    if not YOUTUBE_API_KEY: return {}
-    live_data = {}
-    for ch_id in streamers:
-        if not ch_id: continue
-        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={ch_id}&eventType=live&type=video&key={YOUTUBE_API_KEY}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    for item in data.get("items", []): live_data[ch_id] = item
-    return live_data
-
-
-async def check_tiktok_live(username):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9", "Accept": "text/html", "Referer": "https://www.tiktok.com/"}
-        async with aiohttp.ClientSession() as session:
-            url = f"https://www.tiktok.com/@{username}/live"
-            async with session.get(url, headers=headers, allow_redirects=True) as resp:
-                if resp.status != 200: return None
-                html = await resp.text()
-                title_match = re.search(r'"title":"(.*?)"', html)
-                if not title_match: return None
-                title = title_match.group(1).replace('\\u002F', '/').replace('\\u0026', '&')
-                thumb_match = re.search(r'"thumbnail_url":"(.*?)"', html)
-                thumbnail = thumb_match.group(1).replace('\\u002F', '/') if thumb_match else None
-                return {"title": title, "thumbnail": thumbnail, "url": url}
-    except:
-        return None
-
-
-async def check_tiktok_lives(streamers):
-    live_data = {}
-    for username in streamers:
-        if not username: continue
-        info = await check_tiktok_live(username)
-        if info: live_data[username] = info
-    return live_data
-
-
-@tasks.loop(minutes=1)
-async def live_check_loop():
-    for server_id_str in dados["lives"]["config"]:
-        config = dados["lives"]["config"][server_id_str]
-        guild = bot.get_guild(int(server_id_str))
-        if not guild: continue
-        plataformas = config.get("platforms", {"twitch": True, "youtube": True, "kick": True, "tiktok": True})
-        canal_id = config.get("channel")
-        canal = bot.get_channel(canal_id) if canal_id else None
-        role_id = config.get("role")
-        role_mention = f"<@&{role_id}>" if role_id else ""
-        streamers_dict = dados["lives"]["streamers"].get(server_id_str, {})
-        status_server = dados["lives"]["status"].setdefault(server_id_str, {})
-
-        if plataformas.get("twitch"):
-            twitch_users = [data.get("twitch") for data in streamers_dict.values() if data.get("twitch")]
-            lives = await check_twitch_lives(twitch_users)
-            for uid, data in streamers_dict.items():
-                twitch_name = data.get("twitch")
-                status_server.setdefault(uid, {})["twitch"] = twitch_name.lower() in lives if twitch_name else False
-                if twitch_name and twitch_name.lower() in lives:
-                    last_key = f"twitch_{uid}"
-                    live_info = lives[twitch_name.lower()]
-                    last = dados["lives"]["last_notified"].get(last_key)
-                    if last != live_info["id"]:
-                        dados["lives"]["last_notified"][last_key] = live_info["id"]
-                        nome_streamer = data.get("nome", twitch_name)
-                        observacao = data.get("observacao", "")
-                        if canal:
-                            desc = f"**{nome_streamer}** está ao vivo!"
-                            if observacao: desc += f"\n{observacao}"
-                            embed = discord.Embed(title="🔴 LIVE NA TWITCH", description=desc, color=0x9146ff)
-                            embed.add_field(name="Título", value=live_info['title'], inline=False)
-                            embed.add_field(name="Link", value=f"https://twitch.tv/{twitch_name}", inline=False)
-                            if 'thumbnail_url' in live_info:
-                                thumb_url = live_info['thumbnail_url'].replace('{width}', '640').replace('{height}', '360')
-                                embed.set_image(url=thumb_url)
-                            await canal.send(content=role_mention, embed=embed)
-
-        if plataformas.get("youtube"):
-            yt_users = [data.get("youtube") for data in streamers_dict.values() if data.get("youtube")]
-            lives = await check_youtube_lives(yt_users)
-            for uid, data in streamers_dict.items():
-                yt_ch = data.get("youtube")
-                status_server.setdefault(uid, {})["youtube"] = yt_ch in lives if yt_ch else False
-                if yt_ch and yt_ch in lives:
-                    last_key = f"yt_{uid}"
-                    video = lives[yt_ch]
-                    video_id = video["id"]["videoId"]
-                    last = dados["lives"]["last_notified"].get(last_key)
-                    if last != video_id:
-                        dados["lives"]["last_notified"][last_key] = video_id
-                        nome_streamer = data.get("nome", yt_ch)
-                        observacao = data.get("observacao", "")
-                        if canal:
-                            desc = f"**{nome_streamer}** está ao vivo!"
-                            if observacao: desc += f"\n{observacao}"
-                            embed = discord.Embed(title="🔴 LIVE NO YOUTUBE", description=desc, color=0xff0000)
-                            embed.add_field(name="Título", value=video['snippet']['title'], inline=False)
-                            embed.add_field(name="Link", value=f"https://youtube.com/watch?v={video_id}", inline=False)
-                            await canal.send(content=role_mention, embed=embed)
-
-        if plataformas.get("tiktok"):
-            tiktok_users = [data.get("tiktok") for data in streamers_dict.values() if data.get("tiktok")]
-            lives = await check_tiktok_lives(tiktok_users)
-            for uid, data in streamers_dict.items():
-                tiktok_name = data.get("tiktok")
-                status_server.setdefault(uid, {})["tiktok"] = tiktok_name in lives if tiktok_name else False
-                if tiktok_name and tiktok_name in lives:
-                    last_key = f"tiktok_{uid}"
-                    live_info = lives[tiktok_name]
-                    last = dados["lives"]["last_notified"].get(last_key)
-                    if last != live_info.get("url"):
-                        dados["lives"]["last_notified"][last_key] = live_info.get("url")
-                        nome_streamer = data.get("nome", tiktok_name)
-                        observacao = data.get("observacao", "")
-                        if canal:
-                            desc = f"Fala galera, **{nome_streamer}** acabou de entrar ao vivo na **Tiktok!** Vem colar com a gente!"
-                            embed = discord.Embed(title="🔴 LIVE NO TIKTOK", description=desc, color=0xff0050, url=live_info.get("url"))
-                            embed.add_field(name="Título", value=live_info.get("title", "Live"), inline=False)
-                            embed.set_footer(text="TIKTOK • Hoje às " + datetime.now().strftime("%H:%M"))
-                            if live_info.get("thumbnail"): embed.set_image(url=live_info["thumbnail"])
-                            view = View(timeout=None)
-                            view.add_item(Button(label="Assistir Agora", style=discord.ButtonStyle.link, url=live_info.get("url")))
-                            await canal.send(content=role_mention, embed=embed, view=view)
-
-        for uid, data in streamers_dict.items():
-            if data.get("kick"):
-                status_server.setdefault(uid, {})["kick"] = False
-
-    salvar_dados()
-    for server_id_str in dados["lives"]["config"]:
-        canal_painel = bot.get_channel(CANAL_LIVES_PAINEL_ID)
-        if canal_painel:
-            view = LiveConfigView(int(server_id_str))
-            embed = await view.build_embed()
-            async for msg in canal_painel.history(limit=5):
-                if msg.author == bot.user and msg.embeds:
-                    await msg.edit(embed=embed)
-                    break
-
-
-@live_check_loop.before_loop
-async def before_live_check():
-    await bot.wait_until_ready()
-
-
-class LiveConfigView(View):
-    def __init__(self, server_id):
-        super().__init__(timeout=None)
-        self.server_id = server_id
-
-    async def get_config(self):
-        return dados["lives"]["config"].setdefault(str(self.server_id), {"channel": None, "role": None, "platforms": {"twitch": True, "youtube": True, "kick": True, "tiktok": True}})
-
-    async def build_embed(self):
-        config = await self.get_config()
-        canal_info = f"<#{config['channel']}>" if config['channel'] else "Não definido"
-        cargo_info = f"<@&{config['role']}>" if config['role'] else "Não definido"
-        plats = config['platforms']
-        embed = discord.Embed(title="🔔 NOTIFICAÇÃO DE LIVES", color=0x9b59b6)
-        embed.add_field(name="Canal", value=canal_info, inline=False)
-        embed.add_field(name="Cargo (ping)", value=cargo_info, inline=False)
-        status = "\n".join([
-            f"Twitch: {'✅ Ativado' if plats['twitch'] else '❌ Desativado'}",
-            f"YouTube: {'✅ Ativado' if plats['youtube'] else '❌ Desativado'}",
-            f"Kick: {'✅ Ativado' if plats['kick'] else '❌ Desativado'}",
-            f"TikTok: {'✅ Ativado' if plats['tiktok'] else '❌ Desativado'}"
-        ])
-        embed.add_field(name="Plataformas Monitoradas", value=status, inline=False)
-        streamers = dados["lives"]["streamers"].get(str(self.server_id), {})
-        if streamers:
-            lista_streamers = ""
-            for uid, data in streamers.items():
-                nome = data.get("nome", uid)
-                plats_list = []
-                for p in ["twitch", "youtube", "kick", "tiktok"]:
-                    if data.get(p):
-                        online = dados["lives"]["status"].get(str(self.server_id), {}).get(uid, {}).get(p, False)
-                        emoji = "🟢" if online else "🔴"
-                        plats_list.append(f"{emoji} {p.capitalize()}: {data[p]}")
-                if plats_list:
-                    lista_streamers += f"**<@{uid}>**\n" + "\n".join(plats_list) + "\n\n"
-            if lista_streamers:
-                embed.add_field(name="📋 Streamers Cadastrados", value=lista_streamers[:1024], inline=False)
-        return embed
-
-    @discord.ui.button(label="Definir Canal", style=discord.ButtonStyle.primary, emoji="📝")
-    async def set_channel(self, interaction: discord.Interaction, button: Button):
-        if not is_admin(interaction.user):
-            await interaction.response.send_message("Sem permissão.", ephemeral=True)
-            return
-        modal = SetCanalModal(self.server_id, self)
-        await interaction.response.send_modal(modal)
-
-    @discord.ui.button(label="Configuração", style=discord.ButtonStyle.secondary, emoji="⚙️")
-    async def configuracao(self, interaction: discord.Interaction, button: Button):
-        if not is_admin(interaction.user):
-            await interaction.response.send_message("Sem permissão.", ephemeral=True)
-            return
-        await interaction.response.defer()
-        view = ConfigSteamersView(self.server_id, self)
-        embed = discord.Embed(title="⚙️ CONFIGURAÇÃO DE STREAMERS", description="Gerencie os streamers e plataformas.", color=0x7289da)
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-
-    @discord.ui.button(label="Adicionar Streamer", style=discord.ButtonStyle.success, emoji="➕", row=1)
-    async def adicionar(self, interaction: discord.Interaction, button: Button):
-        if not (is_admin(interaction.user) or is_membro(interaction.user)):
-            await interaction.response.send_message("Você não tem permissão para adicionar streamer.", ephemeral=True)
-            return
-        await interaction.response.send_modal(AddStreamerByLinkModal(self.server_id, self))
-
-    @discord.ui.button(label="Atualizar Painel", style=discord.ButtonStyle.secondary, emoji="🔄", row=1)
-    async def atualizar_painel(self, interaction: discord.Interaction, button: Button):
-        if not is_admin(interaction.user):
-            await interaction.response.send_message("Sem permissão.", ephemeral=True)
-            return
-        await interaction.response.defer()
-        embed = await self.build_embed()
-        await interaction.message.edit(embed=embed, view=self)
-
-
-class SetCanalModal(Modal, title="Definir Canal e Cargo"):
-    canal_id = TextInput(label="ID do canal de notícias", required=True)
-    cargo_id = TextInput(label="ID do cargo para mencionar", required=True)
-
-    def __init__(self, server_id, parent_view):
-        super().__init__()
-        self.server_id = server_id
-        self.parent_view = parent_view
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            cid = int(self.canal_id.value.strip())
-            rid = int(self.cargo_id.value.strip())
-            config = dados["lives"]["config"].setdefault(str(self.server_id), {"platforms": {"twitch": True, "youtube": True, "kick": True, "tiktok": True}})
-            config["channel"] = cid
-            config["role"] = rid
-            salvar_dados()
-            embed = await self.parent_view.build_embed()
-            await interaction.message.edit(embed=embed, view=self.parent_view)
-            await interaction.followup.send("✅ Canal e cargo definidos!", ephemeral=True)
-        except:
-            await interaction.followup.send("IDs inválidos.", ephemeral=True)
-
-
-class ConfigSteamersView(View):
-    def __init__(self, server_id, parent_view):
-        super().__init__(timeout=None)
-        self.server_id = server_id
-        self.parent_view = parent_view
-
-    @discord.ui.button(label="Adicionar Streamer", style=discord.ButtonStyle.success, emoji="➕")
-    async def add(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(AddStreamerByLinkModal(self.server_id, self.parent_view))
-
-    @discord.ui.button(label="Remover Streamer", style=discord.ButtonStyle.danger, emoji="🗑️")
-    async def remove(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer(ephemeral=True)
-        streamers = dados["lives"]["streamers"].get(str(self.server_id), {})
-        if not streamers:
-            await interaction.followup.send("Nenhum streamer cadastrado.", ephemeral=True)
-            return
-        view = RemoveStreamerSelectView(self.server_id, self.parent_view)
-        await interaction.followup.send("Selecione o streamer para remover:", view=view, ephemeral=True)
-
-    @discord.ui.button(label="Twitch", style=discord.ButtonStyle.primary, emoji="📺", row=1)
-    async def toggle_twitch(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer(ephemeral=True)
-        config = dados["lives"]["config"].setdefault(str(self.server_id), {"platforms": {"twitch": True}})
-        config["platforms"]["twitch"] = not config["platforms"].get("twitch", True)
-        salvar_dados()
-        await interaction.followup.send(f"Twitch {'ativado' if config['platforms']['twitch'] else 'desativado'}.", ephemeral=True)
-
-    @discord.ui.button(label="YouTube", style=discord.ButtonStyle.danger, emoji="▶️", row=1)
-    async def toggle_youtube(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer(ephemeral=True)
-        config = dados["lives"]["config"].setdefault(str(self.server_id), {"platforms": {"youtube": True}})
-        config["platforms"]["youtube"] = not config["platforms"].get("youtube", True)
-        salvar_dados()
-        await interaction.followup.send(f"YouTube {'ativado' if config['platforms']['youtube'] else 'desativado'}.", ephemeral=True)
-
-    @discord.ui.button(label="Kick", style=discord.ButtonStyle.success, emoji="🟢", row=1)
-    async def toggle_kick(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer(ephemeral=True)
-        config = dados["lives"]["config"].setdefault(str(self.server_id), {"platforms": {"kick": True}})
-        config["platforms"]["kick"] = not config["platforms"].get("kick", True)
-        salvar_dados()
-        await interaction.followup.send(f"Kick {'ativado' if config['platforms']['kick'] else 'desativado'}.", ephemeral=True)
-
-    @discord.ui.button(label="TikTok", style=discord.ButtonStyle.secondary, emoji="🎵", row=1)
-    async def toggle_tiktok(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer(ephemeral=True)
-        config = dados["lives"]["config"].setdefault(str(self.server_id), {"platforms": {"tiktok": True}})
-        config["platforms"]["tiktok"] = not config["platforms"].get("tiktok", True)
-        salvar_dados()
-        await interaction.followup.send(f"TikTok {'ativado' if config['platforms']['tiktok'] else 'desativado'}.", ephemeral=True)
-
-
-class RemoveStreamerSelectView(View):
-    def __init__(self, server_id, parent_view):
-        super().__init__(timeout=120)
-        self.server_id = server_id
-        self.parent_view = parent_view
-        streamers = dados["lives"]["streamers"].get(str(server_id), {})
-        options = []
-        for uid, data in streamers.items():
-            nome = data.get("nome", uid)
-            plats = []
-            for p in ["twitch", "youtube", "kick", "tiktok"]:
-                if data.get(p): plats.append(p.capitalize())
-            desc = f"{nome} ({', '.join(plats)})" if plats else nome
-            options.append(discord.SelectOption(label=desc[:100], value=uid))
-        if options: self.add_item(StreamerRemoveDropdown(options, server_id, parent_view))
-
-
-class StreamerRemoveDropdown(Select):
-    def __init__(self, options, server_id, parent_view):
-        super().__init__(placeholder="Escolha um streamer para remover...", options=options)
-        self.server_id = server_id
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        uid = self.values[0]
-        if str(self.server_id) in dados["lives"]["streamers"] and uid in dados["lives"]["streamers"][str(self.server_id)]:
-            nome = dados["lives"]["streamers"][str(self.server_id)][uid].get("nome", uid)
-            del dados["lives"]["streamers"][str(self.server_id)][uid]
-            salvar_dados()
-            await interaction.followup.send(f"Streamer **{nome}** removido!", ephemeral=True)
-            try:
-                embed = await self.parent_view.build_embed()
-                await interaction.message.edit(embed=embed, view=self.parent_view)
-            except:
-                pass
-        else:
-            await interaction.followup.send("Streamer não encontrado.", ephemeral=True)
-
-
-class AddStreamerByLinkModal(Modal, title="Adicionar Streamer"):
-    plataforma   = TextInput(label="PLATAFORMA (twitch/youtube/kick/tiktok)", placeholder="Ex: twitch", required=True)
-    username     = TextInput(label="USERNAME DO STREAMER", placeholder="Ex: alanzoka", required=True)
-    discord_user = TextInput(label="DISCORD DO STREAMER (opcional)", placeholder="ID ou @ do usuário", required=False)
-    observacao   = TextInput(label="OBSERVAÇÃO (mensagem padrão)", placeholder="Aparecerá na notificação da live", required=False)
-
-    def __init__(self, server_id, parent_view):
-        super().__init__()
-        self.server_id = server_id
-        self.parent_view = parent_view
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        plat_input = self.plataforma.value.strip().lower()
-        username_input = self.username.value.strip()
-        obs = self.observacao.value.strip()
-        extracted_plat, extracted_id = extract_platform_from_url(username_input)
-        if extracted_plat and extracted_id:
-            platform = extracted_plat
-            identifier = extracted_id
-            nome_streamer = identifier
-        else:
-            if plat_input not in ["twitch", "youtube", "kick", "tiktok"]:
-                await interaction.followup.send("Plataforma inválida.", ephemeral=True)
-                return
-            platform = plat_input
-            identifier = username_input
-            nome_streamer = identifier
-        uid = str(interaction.user.id)
-        if self.discord_user.value.strip():
-            try:
-                uid_str = self.discord_user.value.strip().replace("<@!", "").replace("<@", "").replace(">", "")
-                uid = str(int(uid_str))
-                member = interaction.guild.get_member(int(uid))
-                if member: nome_streamer = member.display_name
-            except:
-                pass
-        if is_membro(interaction.user) and not is_admin(interaction.user):
-            if uid != str(interaction.user.id):
-                await interaction.followup.send("Você só pode adicionar seu próprio canal.", ephemeral=True)
-                return
-        if str(self.server_id) not in dados["lives"]["streamers"]:
-            dados["lives"]["streamers"][str(self.server_id)] = {}
-        if uid not in dados["lives"]["streamers"][str(self.server_id)]:
-            dados["lives"]["streamers"][str(self.server_id)][uid] = {"nome": nome_streamer, "twitch": None, "youtube": None, "kick": None, "tiktok": None, "observacao": ""}
-        dados["lives"]["streamers"][str(self.server_id)][uid][platform] = identifier
-        dados["lives"]["streamers"][str(self.server_id)][uid]["nome"] = nome_streamer
-        if obs: dados["lives"]["streamers"][str(self.server_id)][uid]["observacao"] = obs
-        salvar_dados()
-        await interaction.followup.send(f"Streamer **{nome_streamer}** adicionado em **{platform}**!", ephemeral=True)
-        try:
-            embed = await self.parent_view.build_embed()
-            await interaction.message.edit(embed=embed, view=self.parent_view)
-        except:
-            pass
-
-
 # ========= PAINEL DE AÇÕES =========
 class ActionPanelView(View):
     def __init__(self, server_id):
@@ -2381,7 +1879,6 @@ class ActionPanelView(View):
             return
         view = ActionSelectView(self.server_id, unpaid)
         await interaction.followup.send("Selecione a ação:", view=view, ephemeral=True)
-
 
 class ActionModal(Modal, title="Registrar Ação"):
     nome_acao  = TextInput(label="Ação (nome do lugar)", placeholder="Ex: Assalto ao Banco Central", required=True)
@@ -2424,7 +1921,6 @@ class ActionModal(Modal, title="Registrar Ação"):
         }
         view = MemberSelectView(self.server_id, self.action_info)
         await interaction.followup.send("Selecione os membros que participaram da ação:", view=view, ephemeral=True)
-
 
 class MemberSelectView(View):
     def __init__(self, server_id, action_data):
@@ -2481,13 +1977,11 @@ class MemberSelectView(View):
         await interaction.followup.send("Ação registrada com sucesso!", ephemeral=True)
         self.stop()
 
-
 class ActionSelectView(View):
     def __init__(self, server_id, actions):
         super().__init__(timeout=120)
         self.server_id = server_id
         self.add_item(ActionDropdown(actions))
-
 
 class ActionDropdown(Select):
     def __init__(self, actions):
@@ -2522,7 +2016,6 @@ class ActionDropdown(Select):
         embed.add_field(name="Cada membro recebe", value=f"R$ {por_membro:,.2f}", inline=True)
         view = ConfirmPaymentView(interaction.guild_id, action_id, membros_total, por_membro, action["membros"])
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-
 
 class ConfirmPaymentView(View):
     def __init__(self, server_id, action_id, valor_membros, valor_por_membro, membros):
@@ -2575,7 +2068,6 @@ class ConfirmPaymentView(View):
         else:
             await interaction.followup.send("Ação não encontrada.", ephemeral=True)
 
-
 # ========= ADMIN EXTRA =========
 class RemoverUsuarioModal(Modal, title="Remover Usuário"):
     user_id = TextInput(label="ID do usuário", required=True)
@@ -2598,7 +2090,133 @@ class RemoverUsuarioModal(Modal, title="Remover Usuário"):
         except Exception as e:
             await interaction.followup.send(f"Erro: {e}", ephemeral=True)
 
+# ========= PAINEL DE RECARREGAR OS PAINEIS =========
+class ReloadPanelsView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
 
+    @discord.ui.button(label="🔄 Criar Canal", style=discord.ButtonStyle.secondary, emoji="🔓")
+    async def reload_criar_canal(self, interaction: discord.Interaction, button: Button):
+        await self._reload_painel(interaction, CATEGORIA_PAINEL_ID, "criar-canal", self._embed_criar_canal, BotaoCriarCanalView())
+
+    @discord.ui.button(label="⚔️ Ações", style=discord.ButtonStyle.secondary, emoji="⚔️")
+    async def reload_acoes(self, interaction: discord.Interaction, button: Button):
+        await self._reload_painel(interaction, None, None, self._embed_acoes, ActionPanelView(interaction.guild_id), canal_id=CANAL_ACOES_PAINEL_ID)
+
+    @discord.ui.button(label="🛒 Compra/Venda", style=discord.ButtonStyle.secondary, emoji="💰")
+    async def reload_compras(self, interaction: discord.Interaction, button: Button):
+        await self._reload_painel(interaction, None, None, self._embed_compras, CompraVendaView(), canal_id=CHAT_COMPRA_VENDA_ID)
+
+    @discord.ui.button(label="💾 Backup", style=discord.ButtonStyle.secondary, emoji="💾")
+    async def reload_backup(self, interaction: discord.Interaction, button: Button):
+        await self._reload_painel(interaction, CATEGORIA_BACKUP_ID, "painel-backup", self._embed_backup, BackupView())
+
+    @discord.ui.button(label="📋 SET", style=discord.ButtonStyle.secondary, emoji="📋")
+    async def reload_set(self, interaction: discord.Interaction, button: Button):
+        await self._reload_painel(interaction, CATEGORIA_PAINEL_ID, "solicitar-set", self._embed_set, SetPainelView())
+
+    @discord.ui.button(label="🪖 PD", style=discord.ButtonStyle.secondary, emoji="🪖")
+    async def reload_pd(self, interaction: discord.Interaction, button: Button):
+        await self._reload_painel(interaction, None, None, self._embed_pd, PainelPDView(), canal_id=CANAL_PD_ID)
+
+    @discord.ui.button(label="🔄 TODOS OS PAINEIS", style=discord.ButtonStyle.danger, emoji="⚠️", row=4)
+    async def reload_all(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+
+        # Recarregar Criar Canal
+        await self._reload_painel_direct(guild, CATEGORIA_PAINEL_ID, "criar-canal", self._embed_criar_canal, BotaoCriarCanalView())
+        # Recarregar Ações
+        await self._reload_painel_direct(guild, None, None, self._embed_acoes, ActionPanelView(guild.id), canal_id=CANAL_ACOES_PAINEL_ID)
+        # Recarregar Compra/Venda
+        await self._reload_painel_direct(guild, None, None, self._embed_compras, CompraVendaView(), canal_id=CHAT_COMPRA_VENDA_ID)
+        # Recarregar Backup
+        await self._reload_painel_direct(guild, CATEGORIA_BACKUP_ID, "painel-backup", self._embed_backup, BackupView())
+        # Recarregar SET
+        await self._reload_painel_direct(guild, CATEGORIA_PAINEL_ID, "solicitar-set", self._embed_set, SetPainelView())
+        # Recarregar PD
+        await self._reload_painel_direct(guild, None, None, self._embed_pd, PainelPDView(), canal_id=CANAL_PD_ID)
+
+        await interaction.followup.send("✅ **Todos os painéis foram recarregados!**", ephemeral=True)
+
+    # --- Métodos auxiliares ---
+    async def _reload_painel(self, interaction, categoria_id, nome_canal, embed_func, view, canal_id=None):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        await self._reload_painel_direct(guild, categoria_id, nome_canal, embed_func, view, canal_id)
+        await interaction.followup.send("✅ Painel recarregado!", ephemeral=True)
+
+    async def _reload_painel_direct(self, guild, categoria_id, nome_canal, embed_func, view, canal_id=None):
+        try:
+            if canal_id:
+                canal = guild.get_channel(canal_id)
+            else:
+                categoria = guild.get_channel(categoria_id)
+                if not categoria:
+                    return
+                canal = discord.utils.get(categoria.channels, name=nome_canal)
+                if not canal:
+                    canal = await categoria.create_text_channel(nome_canal)
+
+            if not canal:
+                return
+
+            # Deletar mensagens antigas do bot
+            async for msg in canal.history(limit=50):
+                if msg.author == bot.user:
+                    await msg.delete()
+
+            # Enviar novo embed e view
+            embed = embed_func() if callable(embed_func) else embed_func
+            await canal.send(embed=embed, view=view)
+        except Exception as e:
+            print(f"Erro ao recarregar painel: {e}")
+
+    # --- Funções de embed para cada painel ---
+    def _embed_criar_canal(self):
+        return discord.Embed(
+            title="SISTEMA DE FARM",
+            description="Clique no botão abaixo para criar seu canal privado!\n\n🔒 Apenas você e os administradores terão acesso",
+            color=discord.Color.blue()
+        )
+
+    def _embed_acoes(self):
+        embed = discord.Embed(
+            title="⚔️ PAINEL DE AÇÕES",
+            description="Gerencie as ações e os pagamentos da facção.",
+            color=discord.Color.dark_red()
+        )
+        embed.add_field(name="Abrir Ação", value="Registre uma nova ação com valor, data, participantes e prints.", inline=False)
+        embed.add_field(name="Pagamento", value="Efetue o pagamento das ações pendentes (50% membros / 50% facção).", inline=False)
+        return embed
+
+    def _embed_compras(self):
+        return discord.Embed(
+            title="SISTEMA DE COMPRA E VENDA",
+            description="🔫 **Venda de Arma**\n🛒 **Compra de Produto**",
+            color=discord.Color.blue()
+        )
+
+    def _embed_backup(self):
+        return discord.Embed(
+            title="💾 PAINEL DE BACKUP",
+            description="💾 **Criar Backup** - Salva tudo\n🗑️ **Apagar Backups Locais**\n🔄 **Recarregar Backup** - Restaura backup anterior",
+            color=discord.Color.blue()
+        )
+
+    def _embed_set(self):
+        return discord.Embed(
+            title="📋 PAINEL DE SET",
+            description="Clique no botão abaixo para solicitar seu SET.\n\nPreencha o formulário com seu **Nome** e **ID do Jogo**.\nUm administrador irá avaliar sua solicitação.",
+            color=discord.Color.gold()
+        )
+
+    def _embed_pd(self):
+        return discord.Embed(
+            title="🪖 REGISTRO DE PD",
+            description="Clique no botão abaixo para registrar um PD (Power Death).\n\nPreencha quem tomou PD e quem fez o PD.",
+            color=discord.Color.orange()
+        )
 # ========= EVENTOS =========
 @bot.event
 async def on_member_remove(member):
@@ -2617,17 +2235,17 @@ async def on_member_remove(member):
         salvar_dados()
     await log_admin("LIMPEZA CONCLUÍDA", f"{member.mention} removido do sistema.")
 
-
 @bot.event
 async def on_ready():
     print(f"Bot {bot.user} online!")
-    live_check_loop.start()
+
     for guild in bot.guilds:
         # ---- COMPRA E VENDA ----
         canal_vendas = bot.get_channel(CHAT_COMPRA_VENDA_ID)
         if canal_vendas and isinstance(canal_vendas, discord.TextChannel):
             async for msg in canal_vendas.history(limit=10):
-                if msg.author == bot.user: await msg.delete()
+                if msg.author == bot.user:
+                    await msg.delete()
             await canal_vendas.send(
                 embed=discord.Embed(
                     title="SISTEMA DE COMPRA E VENDA",
@@ -2636,16 +2254,16 @@ async def on_ready():
                 ),
                 view=CompraVendaView()
             )
-        else:
-            print(f"⚠️ Canal de compra/venda ({CHAT_COMPRA_VENDA_ID}) não encontrado ou não é um TextChannel.")
 
         # ---- PAINEL CRIAR CANAL ----
         categoria_painel = guild.get_channel(CATEGORIA_PAINEL_ID)
         if categoria_painel:
             canal_criar = discord.utils.get(categoria_painel.channels, name="criar-canal")
-            if not canal_criar: canal_criar = await categoria_painel.create_text_channel("criar-canal")
+            if not canal_criar:
+                canal_criar = await categoria_painel.create_text_channel("criar-canal")
             async for msg in canal_criar.history(limit=5):
-                if msg.author == bot.user: await msg.delete()
+                if msg.author == bot.user:
+                    await msg.delete()
             await canal_criar.send(
                 embed=discord.Embed(
                     title="SISTEMA DE FARM",
@@ -2659,9 +2277,11 @@ async def on_ready():
         categoria_backup = guild.get_channel(CATEGORIA_BACKUP_ID)
         if categoria_backup:
             canal_backup_painel = discord.utils.get(categoria_backup.channels, name="painel-backup")
-            if not canal_backup_painel: canal_backup_painel = await categoria_backup.create_text_channel("painel-backup")
+            if not canal_backup_painel:
+                canal_backup_painel = await categoria_backup.create_text_channel("painel-backup")
             async for msg in canal_backup_painel.history(limit=5):
-                if msg.author == bot.user: await msg.delete()
+                if msg.author == bot.user:
+                    await msg.delete()
             await canal_backup_painel.send(
                 embed=discord.Embed(
                     title="💾 PAINEL DE BACKUP",
@@ -2675,18 +2295,18 @@ async def on_ready():
         canal_acoes = bot.get_channel(CANAL_ACOES_PAINEL_ID)
         if canal_acoes:
             async for msg in canal_acoes.history(limit=5):
-                if msg.author == bot.user: await msg.delete()
-            embed = discord.Embed(
+                if msg.author == bot.user:
+                    await msg.delete()
+            embed_acoes = discord.Embed(
                 title="⚔️ PAINEL DE AÇÕES",
                 description="Gerencie as ações e os pagamentos da facção.",
                 color=discord.Color.dark_red()
             )
-            embed.add_field(name="Abrir Ação", value="Registre uma nova ação com valor, data, participantes e prints.", inline=False)
-            embed.add_field(name="Pagamento", value="Efetue o pagamento das ações pendentes (50% membros / 50% facção).", inline=False)
-            view = ActionPanelView(guild.id)
-            await canal_acoes.send(embed=embed, view=view)
+            embed_acoes.add_field(name="Abrir Ação", value="Registre uma nova ação com valor, data, participantes e prints.", inline=False)
+            embed_acoes.add_field(name="Pagamento", value="Efetue o pagamento das ações pendentes (50% membros / 50% facção).", inline=False)
+            await canal_acoes.send(embed=embed_acoes, view=ActionPanelView(guild.id))
 
-        # ---- PAINEL DE SET (AUTOMÁTICO) ----
+        # ---- PAINEL DE SET ----
         canal_set = None
         for ch in guild.text_channels:
             if ch.name == "solicitar-set":
@@ -2694,10 +2314,12 @@ async def on_ready():
                 break
         if not canal_set:
             cat_painel = guild.get_channel(CATEGORIA_PAINEL_ID)
-            if cat_painel: canal_set = await cat_painel.create_text_channel("solicitar-set")
+            if cat_painel:
+                canal_set = await cat_painel.create_text_channel("solicitar-set")
         if canal_set:
             async for msg in canal_set.history(limit=5):
-                if msg.author == bot.user: await msg.delete()
+                if msg.author == bot.user:
+                    await msg.delete()
             embed_set = discord.Embed(
                 title="📋 PAINEL DE SET",
                 description="Clique no botão abaixo para solicitar seu SET.\n\nPreencha o formulário com seu **Nome** e **ID do Jogo**.\nUm administrador irá avaliar sua solicitação.",
@@ -2705,11 +2327,12 @@ async def on_ready():
             )
             await canal_set.send(embed=embed_set, view=SetPainelView())
 
-        # ---- PAINEL DE PD (NOVO) ----
+        # ---- PAINEL DE PD ----
         canal_pd = bot.get_channel(CANAL_PD_ID)
         if canal_pd and isinstance(canal_pd, discord.TextChannel):
             async for msg in canal_pd.history(limit=5):
-                if msg.author == bot.user: await msg.delete()
+                if msg.author == bot.user:
+                    await msg.delete()
             embed_pd = discord.Embed(
                 title="🪖 REGISTRO DE PD",
                 description="Clique no botão abaixo para registrar um PD (Power Death).\n\nPreencha quem tomou PD e quem fez o PD.",
@@ -2717,22 +2340,26 @@ async def on_ready():
             )
             await canal_pd.send(embed=embed_pd, view=PainelPDView())
 
-        # ---- PAINEL DE LIVES ----
-        canal_lives = bot.get_channel(CANAL_LIVES_PAINEL_ID)
-        if canal_lives:
-            async for msg in canal_lives.history(limit=5):
-                if msg.author == bot.user: await msg.delete()
-            view = LiveConfigView(guild.id)
-            embed = await view.build_embed()
-            await canal_lives.send(embed=embed, view=view)
+    # ---- NOVO: PAINEL DE RECARREGAR ----
+    canal_reload = bot.get_channel(CANAL_RECARREGAR_PAINEL_ID)
+    if canal_reload:
+        async for msg in canal_reload.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        embed_reload = discord.Embed(
+            title="🔄 PAINEL DE RECARREGAR",
+            description="Clique nos botões abaixo para **recarregar** os painéis correspondentes.\nUse com cuidado – isso limpa as mensagens antigas do bot e envia uma nova versão.",
+            color=discord.Color.blurple()
+        )
+        await canal_reload.send(embed=embed_reload, view=ReloadPanelsView())
 
-        # ---- BACKUP AUTOMÁTICO ----
-        canal_backup_arquivos = bot.get_channel(CANAL_BACKUP_ARQUIVOS_ID)
-        if canal_backup_arquivos: await salvar_backup_completo("Sistema (Auto)")
+    # ---- BACKUP AUTOMÁTICO ----
+    canal_backup_arquivos = bot.get_channel(CANAL_BACKUP_ARQUIVOS_ID)
+    if canal_backup_arquivos:
+        await salvar_backup_completo("Sistema (Auto)")
 
     await atualizar_ranking()
     await log_admin("🤖 BOT INICIADO", f"Bot {bot.user.mention} online!", 0x00ff00)
-
 
 if __name__ == "__main__":
     carregar_dados()
